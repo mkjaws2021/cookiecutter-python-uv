@@ -212,14 +212,25 @@ def setup_agent_files() -> None:
     """Write AGENTS.md, skills, and hooks where Codex and Claude Code each discover them.
 
     Codex reads skills from `.agents/skills/` and Claude Code from `.claude/skills/`, neither the
-    other's. Claude's directory is a symlink, so one copy of the skills serves both. Each agent
-    keeps its settings and hooks in its own directory, `.codex/` and `.claude/`.
+    other's. Claude's directory is a symlink, so one copy of the skills serves both. Where
+    symlinks cannot be created (Windows without Developer Mode or admin rights), it is a copy
+    instead. Each agent keeps its settings and hooks in its own directory, `.codex/` and
+    `.claude/`.
     """
     shutil.copy(Path("data/AGENTS.md"), Path("AGENTS.md"))
     shutil.copytree("data/.agents", ".agents")
     shutil.copytree("data/.claude", ".claude")
     shutil.copytree("data/.codex", ".codex")
-    Path(".claude/skills").symlink_to(Path("..") / AGENT_SKILLS, target_is_directory=True)
+
+    claude_skills = Path(".claude/skills")
+    try:
+        claude_skills.symlink_to(Path("..") / AGENT_SKILLS, target_is_directory=True)
+    except OSError as e:
+        shutil.copytree(AGENT_SKILLS, claude_skills)
+        logger.warning(
+            f"Could not symlink {claude_skills} to {AGENT_SKILLS} ({e}); copied it instead. "
+            "Keep the two in sync, or enable symlinks (Windows: Developer Mode) and recreate it."
+        )
 
 
 def remove_data_dir() -> None:

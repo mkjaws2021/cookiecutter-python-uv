@@ -19,6 +19,23 @@ from hooks import post_gen_project
 TEMPLATE_ROOT = Path("{{cookiecutter.package_name}}")
 
 
+def can_symlink(tmp_path: Path) -> bool:
+    """Whether this platform lets the current user create directory symlinks."""
+    try:
+        (tmp_path / "link").symlink_to(tmp_path, target_is_directory=True)
+    except OSError:
+        return False
+    (tmp_path / "link").unlink()
+    return True
+
+
+@pytest.fixture
+def symlinks(tmp_path: Path) -> None:
+    """Skip a test where directory symlinks cannot be created (Windows without Developer Mode)."""
+    if not can_symlink(tmp_path):
+        pytest.skip("symlinks not permitted for this user")
+
+
 @pytest.fixture
 def agent_data(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Create the `data/` directory that the agent setup copies from."""
@@ -77,6 +94,7 @@ def test_set_license_copies_and_formats(tmp_path: Path, monkeypatch: pytest.Monk
     assert "{{cookiecutter.author_name}}" in license_contents
 
 
+@mark.usefixtures("symlinks")
 def test_setup_agent_files_serves_claude_and_codex(agent_data: Path) -> None:
     """Write skills to `.agents/skills/` and make `.claude/skills/` a symlink to it.
 
@@ -95,6 +113,25 @@ def test_setup_agent_files_serves_claude_and_codex(agent_data: Path) -> None:
     assert not (agent_data / "CLAUDE.md").exists()
 
 
+def test_setup_agent_files_copies_skills_without_symlinks(
+    agent_data: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Copy skills to `.claude/skills/` when the platform refuses to create symlinks."""
+
+    def refuse(*args: object, **kwargs: object) -> None:
+        raise OSError("A required privilege is not held by the client")
+
+    monkeypatch.setattr(Path, "symlink_to", refuse)
+
+    post_gen_project.setup_agent_files()
+
+    copied = agent_data / ".claude" / "skills"
+    assert not copied.is_symlink()
+    assert (copied / "write-code" / "SKILL.md").read_text(encoding="utf-8") == "skill\n"
+    assert "copied it instead" in caplog.text
+
+
+@mark.usefixtures("symlinks")
 def test_claude_skills_link_survives_project_move(
     agent_data: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
