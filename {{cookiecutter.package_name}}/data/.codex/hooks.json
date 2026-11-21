@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --no-sync ruff format . && uv run --no-sync ruff check . --fix",
+            "statusMessage": "Formatting and linting with ruff"
+          }
+        ]
+      }
+    ]
+  }
+}

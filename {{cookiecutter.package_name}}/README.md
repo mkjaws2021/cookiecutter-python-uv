@@ -1,0 +1,12 @@
+# {{cookiecutter.project_name}}
+
+{% if cookiecutter.license == "None" %}![License](https://img.shields.io/badge/license-None-black){% else %}[![License](https://img.shields.io/github/license/{{cookiecutter.github_username}}/{{cookiecutter.package_name}})]({{cookiecutter.project_url}}/blob/master/LICENSE){% endif %}
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://docs.astral.sh/uv)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![Markdown style: rumdl](https://img.shields.io/badge/md%20style-rumdl-000000.svg)](https://rumdl.dev)
+[![ty](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ty/main/assets/badge/v0.json)](https://github.com/astral-sh/ty)
+[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/{{cookiecutter.github_username}}/{{cookiecutter.package_name}}/test.yml?branch=master&logo=github-actions)]({{cookiecutter.project_url}}/actions)
+
+## Credits
+
+This package was created with [Cookiecutter](https://github.com/cookiecutter/cookiecutter) and the [mkjaws/cookiecutter-python-uv](https://github.com/mkjaws/cookiecutter-python-uv) project template by Mahesh Jayaraj.

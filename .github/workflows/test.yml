@@ -1,0 +1,138 @@
+name: Test cookiecutter-python-uv
+
+on:
+  pull_request: {}
+  push:
+    branches: master
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hooks:
+    strategy:
+      matrix:
+        python-version: ['3.13', '3.14']
+        os: [ubuntu-latest]
+
+    name: Hooks ${{ matrix.os }} ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+
+      - name: Install Python
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Check TOML/YAML/whitespace
+        run: |
+          uv run -- prek run --all-files --show-diff-on-failure --color=always \
+            check-toml \
+            check-yaml \
+            check-merge-conflict \
+            trailing-whitespace \
+            end-of-file-fixer
+
+      - run: uv run rumdl fmt --check --diff .
+      - run: uv run rumdl check .
+
+      - run: uv run ruff format --check --diff .
+      - run: uv run ruff check .
+
+      - run: uv run ty check
+
+      - run: uv run pytest
+
+  generate:
+    name: Generate ${{ matrix.name }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # github_setup stays None everywhere: anything else creates a real repository
+        include:
+          - name: defaults
+            license: MIT
+            publish_on_pypi: 'No'
+          # The only leg with dependencies, and the only one keeping publish.yml
+          - name: PyPI, with dependencies
+            license: Apache-2.0
+            publish_on_pypi: 'Yes'
+            dependencies: numpy
+            dev_dependencies: pytest-xdist>=3.6
+          - name: BSD-3-Clause
+            license: BSD-3-Clause
+            publish_on_pypi: 'No'
+          # No LICENSE file, and no license in pyproject.toml
+          - name: unlicensed
+            license: None
+            publish_on_pypi: 'No'
+
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+
+      # The locked cookiecutter, the same one the hook tests import
+      - run: uv sync --locked
+
+      - run: sudo apt-get update && sudo apt-get install -y direnv
+
+      - name: Configure git
+        run: |
+          git config --global user.email "default@example.com"
+          git config --global user.name "Default Name"
+          git config --global init.defaultBranch master
+
+      - name: Run cookiecutter
+        run: |
+          uv run cookiecutter . --no-input --config-file template_config.yml -o .. \
+            license="${{ matrix.license }}" \
+            publish_on_pypi="${{ matrix.publish_on_pypi }}" \
+            dependencies="${{ matrix.dependencies }}" \
+            dev_dependencies="${{ matrix.dev_dependencies }}"
+
+      - name: Check the generated project
+        working-directory: ../uv_project
+        run: |
+          direnv allow .
+          uv run prek run -a --stage pre-push
+
+      - name: Check the files the options select
+        working-directory: ../uv_project
+        run: |
+          test -f AGENTS.md
+          if [ "${{ matrix.license }}" = "None" ]; then
+            test ! -f LICENSE
+          else
+            test -f LICENSE
+          fi
+          if [ "${{ matrix.publish_on_pypi }}" = "Yes" ]; then
+            test -f .github/workflows/publish.yml
+          else
+            test ! -f .github/workflows/publish.yml
+          fi
+          test -f .agents/skills/write-code/SKILL.md
+          test -L .claude/skills
+          test .claude/skills -ef .agents/skills
+          test -f .claude/skills/write-code/SKILL.md
+          test -f .claude/settings.json
+          test -f .codex/hooks.json
+          test ! -f CLAUDE.md
+          test ! -e data
